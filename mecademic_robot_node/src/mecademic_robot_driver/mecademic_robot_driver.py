@@ -20,6 +20,8 @@ class MecademicRobot_Driver():
         """
         rospy.init_node("MecademicRobot_driver", anonymous=True)
         self.joint_subscriber = rospy.Subscriber("MecademicRobot_joint", JointState, self.joint_callback)
+        self.move_rel_WRF_subscriber = rospy.Subscriber("MecademicRobot_move_rel_WRF", JointState,
+                                                        self.move_rel_WRF_callback)
         self.pose_subscriber = rospy.Subscriber("MecademicRobot_pose", Pose, self.pose_callback)
         self.command_subscriber = rospy.Subscriber("MecademicRobot_command", String, self.command_callback)
         self.gripper_subscriber = rospy.Subscriber("MecademicRobot_gripper", Bool, self.gripper_callback)
@@ -108,6 +110,30 @@ class MecademicRobot_Driver():
         if reply is not None:
             self.reply_publisher.publish(reply)
 
+    def move_rel_WRF_callback(self, move_rel_params):
+        """Callback when the MecademicRobot_emit topic receives a message
+        Forwards message to driver that translate into real command
+        to the Mecademic Robot
+
+        :param pose: message received from topic containing position and orientation information
+        """
+        while not self.socket_available:  # wait for the socket to be available
+            pass
+        reply = None
+        self.socket_available = False  # Block other processes from using the socket
+        if self.robot.is_in_error():
+            self.robot.ResetError()
+            self.robot.ResumeMotion()
+
+        if len(move_rel_params.position) == 6:
+            reply = self.robot.MoveLinRelWRF(move_rel_params.position[0], move_rel_params.position[1],
+                                             move_rel_params.position[2], move_rel_params.position[3],
+                                             move_rel_params.position[4], move_rel_params.position[5])
+
+        self.socket_available = True  # Release the socket so other processes can use it
+        if reply is not None:
+            self.reply_publisher.publish(reply)
+
     def gripper_callback(self, state):
         """Controls whether to open or close the gripper.
         True for open, False for close
@@ -179,8 +205,8 @@ class MecademicRobot_Driver():
 
 
 if __name__ == "__main__":
-    robot = RobotController('192.168.0.100')
-    feedback = RobotFeedback('192.168.0.100', "v8.1.6.141")
+    robot = RobotController('192.168.1.9')
+    feedback = RobotFeedback('192.168.1.9', "v8.1.6.141")
     robot.connect()
     feedback.connect()
     robot.ActivateRobot()
